@@ -1,0 +1,13 @@
+.env
+.env.*
+*.token
+*token*
+*auth-state*
+node_modules/
+/raw_exports/
+/dataset/
+/run_result.json
+/sijichan_data_export_*/
+/四季蝉数据导出_*/
+*.log
+~$*

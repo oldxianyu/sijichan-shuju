@@ -1,0 +1,20 @@
+{
+  "lastMonth_vs_priorTwoMonths": {
+    "label": "上月",
+    "overview": {
+      "saleAmount": 128000,
+      "orderNum": 860,
+      "customersNum": 720
+    },
+    "products": [
+      {
+        "commodityCode": "DEMO001",
+        "commodityName": "示例商品A",
+        "saleAmount": 42000,
+        "orderNum": 230,
+        "saleStoreNum": 18,
+        "saleEmpNum": 44
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "lastMonth": {
+    "rows": [
+      {
+        "activityName": "示例活动",
+        "commodityCode": "DEMO001",
+        "commodityName": "示例商品A",
+        "rewardSaleAmount": 1800
+      }
+    ],
+    "sum": {
+      "rewardSaleAmount": 1800
+    }
+  }
+}
