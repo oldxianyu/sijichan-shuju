@@ -16,6 +16,8 @@
 - 输出新增：
   - `dataset/interface_diagnostics.json`
   - `dataset/data_source_status.json`
+  - `dataset/operation_insights.json`
+- 新增运营洞察字段，用于后续 AI 复盘判断客户续用健康度、流失风险、四季蝉模块使用深度和下月运营推动动作。
 - 固定自然月口径与 SOP_4CHAN 保持一致，默认以 `2026-06-06` 为基准。
 
 ## 数据口径
@@ -113,7 +115,8 @@ node sijichan_data_export.js \
 │  ├─ manufacturer_tips.json
 │  ├─ overview.json
 │  ├─ interface_diagnostics.json
-│  └─ data_source_status.json
+│  ├─ data_source_status.json
+│  └─ operation_insights.json
 └─ run_result.json
 ```
 
@@ -122,7 +125,8 @@ node sijichan_data_export.js \
 1. 先读取 `dataset/manifest.json`，确认客户、生成时间、日期口径和模块列表。
 2. 再读取 `dataset/data_source_status.json`，区分明细型数据、指标型数据、业务值为 0 和接口失败。
 3. 如果发现 `failed`，读取 `dataset/interface_diagnostics.json` 看具体接口、业务码和失败原因。
-4. 做经营分析时基于 `dataset/*.json` 的标准化数据，不要直接基于 raw 接口响应下结论。
+4. 读取 `dataset/operation_insights.json`，优先使用健康度、风险项、价值证明点和建议动作来组织老客户复盘话术。
+5. 做经营分析时基于 `dataset/*.json` 的标准化数据，不要直接基于 raw 接口响应下结论。
 
 ## 安全说明
 

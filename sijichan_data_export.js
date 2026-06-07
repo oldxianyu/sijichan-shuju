@@ -241,6 +241,74 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function hasValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function pickField(row, candidates) {
+  for (const key of candidates) {
+    if (row && hasValue(row[key])) return row[key];
+  }
+  return "";
+}
+
+function ratioPercent(numerator, denominator) {
+  const base = toNumber(denominator);
+  if (!base) return 0;
+  return Math.round((toNumber(numerator) / base) * 10000) / 100;
+}
+
+function sumCandidates(rows, candidates) {
+  return (rows || []).reduce((sum, row) => {
+    const key = candidates.find((candidate) => row && row[candidate] !== undefined && row[candidate] !== "");
+    return sum + (key ? toNumber(row[key]) : 0);
+  }, 0);
+}
+
+function uniqueCountCandidates(rows, candidates) {
+  const values = new Set();
+  for (const row of rows || []) {
+    const value = pickField(row, candidates);
+    if (hasValue(value)) values.add(String(value).trim());
+  }
+  return values.size;
+}
+
+function countRowsWithPositiveCandidate(rows, candidates) {
+  return (rows || []).filter((row) => candidates.some((candidate) => toNumber(row && row[candidate]) > 0)).length;
+}
+
+function rateLevel(value, good, warning) {
+  if (value >= good) return "healthy";
+  if (value >= warning) return "watch";
+  return "risk";
+}
+
+function roundMoney(value) {
+  return Math.round(toNumber(value) * 100) / 100;
+}
+
+function topRowsByCandidates(rows, metricCandidates, fields, limit = 8) {
+  return [...(rows || [])]
+    .map((row) => {
+      const metricKey = metricCandidates.find((candidate) => row && row[candidate] !== undefined && row[candidate] !== "");
+      return { row, metricKey, metricValue: metricKey ? toNumber(row[metricKey]) : 0 };
+    })
+    .filter((item) => item.metricKey && item.metricValue > 0)
+    .sort((a, b) => b.metricValue - a.metricValue)
+    .slice(0, limit)
+    .map((item) => {
+      const out = {};
+      for (const field of fields) {
+        const value = pickField(item.row, field.candidates);
+        if (hasValue(value)) out[field.name] = value;
+      }
+      out.metric = item.metricKey;
+      out.value = roundMoney(item.metricValue);
+      return out;
+    });
+}
+
 function hasNonZeroMetric(rows) {
   return rows.some((row) => {
     const value = row.value;
@@ -590,6 +658,7 @@ function standardize(raw) {
   }
   if (raw.exportTasks) dataset.export_tasks = raw.exportTasks;
   dataset.data_source_status = buildDataSourceStatus(dataset);
+  dataset.operation_insights = deriveOperationInsights(dataset);
   return dataset;
 }
 
@@ -663,6 +732,123 @@ function buildDataSourceStatus(dataset) {
   ];
 }
 
+function withDataMeta(rows, dataFile, dataPath) {
+  return (rows || []).map((row) => ({ ...row, data_file: dataFile, data_path: dataPath }));
+}
+
+function deriveOperationInsights(dataset) {
+  const productCodeCandidates = ["commodityCode", "wareIspCode", "productCode", "goodsCode", "skuCode", "商品编码"];
+  const productNameCandidates = ["commodityName", "productName", "goodsName", "skuName", "商品名称"];
+  const salesAmountCandidates = ["saleCommodityAmount", "rewardSaleAmount", "saleAmount", "salesAmount", "销售金额", "激励商品销售金额"];
+  const rewardAmountCandidates = ["rewardCommodityAmount", "singleRewardMoney", "rewardAmount", "amount", "奖励金额", "激励总金额"];
+  const storeCandidates = ["saleStoreNum", "storeNum", "storeCode", "merCode", "门店编码", "动销门店数"];
+  const employeeCandidates = ["employeeCode", "empCode", "empId", "employeeName", "empName", "员工编码", "员工姓名"];
+  const rewardPlayFields = [
+    ["single_sales", "单品销售奖励", "singleRewardMoney", "单品奖励金额"],
+    ["multi_sales", "疗程销售奖励", "multiRewardMoney", "疗程奖励金额"],
+    ["combined_sales", "关联销售奖励", "combineRewardMoney", "关联奖励金额"],
+    ["single_target", "单品目标奖励", "commodityTargetRewardMoney", "单品目标奖励金额"],
+    ["serial_target", "系列目标奖励", "serialTargetRewardMoney", "系列目标奖励金额"],
+    ["combination_target", "组合目标奖励", "combinationTargetRewardMoney", "组合目标奖励金额"],
+    ["early_bird", "早鸟奖励", "dayRankRewardMoney", "早鸟奖励金额"],
+    ["ranking", "排名奖励", "rankingRewardMoney", "排名奖励金额"],
+  ];
+
+  const salesRows = Object.entries(dataset.sales || {}).flatMap(([key, value]) => withDataMeta(value.products || [], "sales.json", `${key}.products`));
+  const activityRows = Object.entries(dataset.activity_summary || {}).flatMap(([key, value]) => withDataMeta(value.rows || [], "activity_summary.json", `${key}.rows`));
+  const rewardRows = withDataMeta(dataset.reward_statistics && dataset.reward_statistics.nearHalf || [], "reward_statistics.json", "nearHalf.rows");
+  const trainingRows = [
+    ...withDataMeta(dataset.training && dataset.training.roleLearning || [], "training.json", "roleLearning"),
+    ...withDataMeta(dataset.training && dataset.training.storeLearning || [], "training.json", "storeLearning"),
+    ...withDataMeta(dataset.training && dataset.training.employeeLearning || [], "training.json", "employeeLearning"),
+    ...withDataMeta(dataset.training && dataset.training.courseLearning || [], "training.json", "courseLearning"),
+  ];
+  const tipsRows = withDataMeta(dataset.manufacturer_tips && dataset.manufacturer_tips.rows || [], "manufacturer_tips.json", "rows");
+  const trainingMetrics = [
+    ...metricRowsFromObject(dataset.training && dataset.training.courseOverview, "training", "courseOverview"),
+    ...metricRowsFromObject(dataset.training && dataset.training.resourceOverview, "training", "resourceOverview"),
+  ];
+
+  const salesSkuCount = uniqueCountCandidates(salesRows, productCodeCandidates);
+  const activeSkuCount = uniqueCountCandidates(activityRows, productCodeCandidates);
+  const rewardSkuCount = uniqueCountCandidates(rewardRows, productCodeCandidates);
+  const totalSalesAmount = roundMoney(sumCandidates(salesRows, salesAmountCandidates));
+  const activitySalesAmount = roundMoney(sumCandidates(activityRows, salesAmountCandidates));
+  const totalRewardAmount = roundMoney(sumCandidates(activityRows, rewardAmountCandidates) || sumCandidates(rewardRows, rewardAmountCandidates));
+  const rewardEfficiency = activitySalesAmount ? roundMoney((totalRewardAmount / activitySalesAmount) * 100) : 0;
+  const activityCoverageRate = ratioPercent(activeSkuCount || rewardSkuCount, salesSkuCount || activeSkuCount || rewardSkuCount);
+  const storeCoverage = uniqueCountCandidates([...salesRows, ...activityRows], storeCandidates);
+  const employeeCoverage = uniqueCountCandidates([...activityRows, ...tipsRows], employeeCandidates);
+  const trainingHasSignal = trainingRows.length > 0 || hasNonZeroMetric(trainingMetrics);
+  const shareRecordCount = tipsRows.length;
+  const shareRewardAmount = roundMoney(sumCandidates(tipsRows, rewardAmountCandidates));
+  const usedRewardPlays = rewardPlayFields
+    .map(([key, label, ...fields]) => ({
+      key,
+      label,
+      amount: roundMoney(sumCandidates(rewardRows, fields)),
+      skuCount: countRowsWithPositiveCandidate(rewardRows, fields),
+    }))
+    .filter((item) => item.amount > 0 || item.skuCount > 0);
+  const unusedRewardPlays = rewardPlayFields
+    .filter(([key]) => !usedRewardPlays.some((item) => item.key === key))
+    .map(([, label]) => label);
+  const weakActivityRows = activityRows.filter((row) => sumCandidates([row], salesAmountCandidates) <= 0 && sumCandidates([row], rewardAmountCandidates) > 0);
+
+  const scoreItems = [
+    { key: "activity_coverage", label: "活动覆盖", value: activityCoverageRate, level: rateLevel(activityCoverageRate, 35, 15), explanation: `活动覆盖约 ${activityCoverageRate}% 的动销品种。` },
+    { key: "reward_closure", label: "激励闭环", value: rewardEfficiency, level: activitySalesAmount ? rateLevel(Math.min(rewardEfficiency, 100), 8, 2) : "risk", explanation: activitySalesAmount ? `每100元活动销售对应约 ${rewardEfficiency} 元奖励。` : "未识别到活动销售额，难以证明奖励带动销售。" },
+    { key: "employee_participation", label: "员工参与", value: employeeCoverage, level: employeeCoverage ? "watch" : "risk", explanation: employeeCoverage ? `识别到 ${employeeCoverage} 个员工/店员参与信号。` : "缺少员工参与、晒单或收益闭环信号。" },
+    { key: "training_conversion", label: "培训承接", value: trainingRows.length || trainingMetrics.length, level: trainingHasSignal ? "watch" : "risk", explanation: trainingHasSignal ? "已有培训或学习指标，建议继续绑定销售结果。" : "培训数据为空，客户容易只使用活动红包能力。" },
+    { key: "factory_collaboration", label: "厂家协同", value: shareRewardAmount || shareRecordCount, level: shareRecordCount || shareRewardAmount ? "healthy" : "risk", explanation: shareRecordCount || shareRewardAmount ? `厂家晒单/打赏记录 ${shareRecordCount} 条，金额约 ${shareRewardAmount}。` : "厂家打赏和晒单为空，厂家资源没有形成执行证据。" },
+  ];
+  const healthScore = Math.max(0, Math.min(100, Math.round(scoreItems.reduce((sum, item) => sum + (item.level === "healthy" ? 20 : item.level === "watch" ? 12 : 5), 0))));
+  const retentionRisk = healthScore >= 72 ? "low" : healthScore >= 48 ? "medium" : "high";
+
+  return {
+    purpose: "Help downstream review tools prove Sijichan value, identify churn risk, and guide customers to use more modules.",
+    healthScore,
+    retentionRisk,
+    scoreItems,
+    riskItems: scoreItems.filter((item) => item.level === "risk"),
+    valueProofPoints: [
+      totalSalesAmount ? `已识别重点品销售额约 ${totalSalesAmount}。` : "",
+      activitySalesAmount ? `活动商品销售额约 ${activitySalesAmount}，奖励金额约 ${totalRewardAmount}。` : "",
+      usedRewardPlays.length ? `已使用 ${usedRewardPlays.length} 类激励玩法：${usedRewardPlays.map((item) => item.label).join("、")}。` : "",
+      storeCoverage ? `识别到 ${storeCoverage} 个门店/机构覆盖信号。` : "",
+    ].filter(Boolean),
+    recommendedActions: [
+      activityCoverageRate < 35 ? "扩大活动覆盖，把AAA主力赚钱品、黄金单品和任务品分层配置。" : "保留当前活动覆盖，并按品种层级复制标杆门店。",
+      usedRewardPlays.length < 3 ? `优先补齐 ${unusedRewardPlays.slice(0, 3).join("、")}，让客户看到四季蝉不只是单品红包。` : "复用已跑通玩法，沉淀月度活动模板。",
+      trainingHasSignal ? "把培训结果与销售结果同屏复盘，证明学习能转化为推荐动作。" : "补齐培训考试，把重点品卖点学习、考试奖励和销售任务连成闭环。",
+      shareRecordCount || shareRewardAmount ? "把厂家打赏和晒单沉淀成大单分享、排行榜和厂家复投证据。" : "推动厂家提供晒单打赏或活动费用，用数据证明资源落到门店执行层。",
+      employeeCoverage ? "继续强化店员感知，复盘排行榜、高收益员工和及时收益案例。" : "补齐店员收益闭环，重点展示及时豆、延时豆、可提现收益和到账案例。",
+    ],
+    metrics: {
+      salesSkuCount,
+      activeSkuCount,
+      rewardSkuCount,
+      activityCoverageRate,
+      totalSalesAmount,
+      activitySalesAmount,
+      totalRewardAmount,
+      rewardEfficiency,
+      storeCoverage,
+      employeeCoverage,
+      usedRewardPlayCount: usedRewardPlays.length,
+      unusedRewardPlays,
+      shareRecordCount,
+      shareRewardAmount,
+      weakActivitySkuCount: weakActivityRows.length,
+    },
+    weakActivityItems: topRowsByCandidates(weakActivityRows, rewardAmountCandidates, [
+      { name: "productName", candidates: productNameCandidates },
+      { name: "productCode", candidates: productCodeCandidates },
+      { name: "dataPath", candidates: ["data_path"] },
+    ], 8),
+  };
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const outDir = path.resolve(args["out-dir"] || `sijichan_data_export_${timestamp()}`);
@@ -686,6 +872,7 @@ async function main() {
     ["overview", dataset.overview],
     ["interface_diagnostics", dataset.interface_diagnostics],
     ["data_source_status", dataset.data_source_status],
+    ["operation_insights", dataset.operation_insights],
   ];
   if (dataset.export_tasks) modules.push(["export_tasks", dataset.export_tasks]);
 
