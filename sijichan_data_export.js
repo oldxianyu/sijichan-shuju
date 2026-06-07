@@ -737,12 +737,13 @@ function withDataMeta(rows, dataFile, dataPath) {
 }
 
 function deriveOperationInsights(dataset) {
-  const productCodeCandidates = ["commodityCode", "wareIspCode", "productCode", "goodsCode", "skuCode", "商品编码"];
+  const productCodeCandidates = ["commodityCode", "wareIspCode", "erpCode", "productCode", "goodsCode", "skuCode", "商品编码"];
   const productNameCandidates = ["commodityName", "productName", "goodsName", "skuName", "商品名称"];
-  const salesAmountCandidates = ["saleCommodityAmount", "rewardSaleAmount", "saleAmount", "salesAmount", "销售金额", "激励商品销售金额"];
-  const rewardAmountCandidates = ["rewardCommodityAmount", "singleRewardMoney", "rewardAmount", "amount", "奖励金额", "激励总金额"];
+  const salesAmountCandidates = ["saleCommodityAmount", "rewardCommodityAmount", "saleAmount", "salesAmount", "销售金额", "激励商品销售金额"];
+  const rewardAmountCandidates = ["rewardSaleAmount", "singleRewardMoney", "multiRewardMoney", "combineRewardMoney", "commodityTargetRewardMoney", "serialTargetRewardMoney", "combinationTargetRewardMoney", "dayRankRewardMoney", "rankingRewardMoney", "rewardAmount", "奖励金额", "激励总金额"];
   const storeCandidates = ["saleStoreNum", "storeNum", "storeCode", "merCode", "门店编码", "动销门店数"];
   const employeeCandidates = ["employeeCode", "empCode", "empId", "employeeName", "empName", "员工编码", "员工姓名"];
+  const employeeCountCandidates = ["saleEmpNum", "rewardEmpNum", "empNum", "employeeNum", "参与员工数", "奖励员工数"];
   const rewardPlayFields = [
     ["single_sales", "单品销售奖励", "singleRewardMoney", "单品奖励金额"],
     ["multi_sales", "疗程销售奖励", "multiRewardMoney", "疗程奖励金额"],
@@ -774,11 +775,14 @@ function deriveOperationInsights(dataset) {
   const rewardSkuCount = uniqueCountCandidates(rewardRows, productCodeCandidates);
   const totalSalesAmount = roundMoney(sumCandidates(salesRows, salesAmountCandidates));
   const activitySalesAmount = roundMoney(sumCandidates(activityRows, salesAmountCandidates));
-  const totalRewardAmount = roundMoney(sumCandidates(activityRows, rewardAmountCandidates) || sumCandidates(rewardRows, rewardAmountCandidates));
+  const rewardRowsAmount = roundMoney(sumCandidates(rewardRows, rewardAmountCandidates));
+  const activityRewardAmount = roundMoney(sumCandidates(activityRows, rewardAmountCandidates));
+  const totalRewardAmount = rewardRowsAmount || activityRewardAmount;
   const rewardEfficiency = activitySalesAmount ? roundMoney((totalRewardAmount / activitySalesAmount) * 100) : 0;
   const activityCoverageRate = ratioPercent(activeSkuCount || rewardSkuCount, salesSkuCount || activeSkuCount || rewardSkuCount);
   const storeCoverage = uniqueCountCandidates([...salesRows, ...activityRows], storeCandidates);
   const employeeCoverage = uniqueCountCandidates([...activityRows, ...tipsRows], employeeCandidates);
+  const employeeParticipationSignal = employeeCoverage || roundMoney(sumCandidates(activityRows, employeeCountCandidates));
   const trainingHasSignal = trainingRows.length > 0 || hasNonZeroMetric(trainingMetrics);
   const shareRecordCount = tipsRows.length;
   const shareRewardAmount = roundMoney(sumCandidates(tipsRows, rewardAmountCandidates));
@@ -798,7 +802,7 @@ function deriveOperationInsights(dataset) {
   const scoreItems = [
     { key: "activity_coverage", label: "活动覆盖", value: activityCoverageRate, level: rateLevel(activityCoverageRate, 35, 15), explanation: `活动覆盖约 ${activityCoverageRate}% 的动销品种。` },
     { key: "reward_closure", label: "激励闭环", value: rewardEfficiency, level: activitySalesAmount ? rateLevel(Math.min(rewardEfficiency, 100), 8, 2) : "risk", explanation: activitySalesAmount ? `每100元活动销售对应约 ${rewardEfficiency} 元奖励。` : "未识别到活动销售额，难以证明奖励带动销售。" },
-    { key: "employee_participation", label: "员工参与", value: employeeCoverage, level: employeeCoverage ? "watch" : "risk", explanation: employeeCoverage ? `识别到 ${employeeCoverage} 个员工/店员参与信号。` : "缺少员工参与、晒单或收益闭环信号。" },
+    { key: "employee_participation", label: "员工参与", value: employeeParticipationSignal, level: employeeParticipationSignal ? "watch" : "risk", explanation: employeeParticipationSignal ? `识别到员工/店员参与信号约 ${employeeParticipationSignal}。` : "缺少员工参与、晒单或收益闭环信号。" },
     { key: "training_conversion", label: "培训承接", value: trainingRows.length || trainingMetrics.length, level: trainingHasSignal ? "watch" : "risk", explanation: trainingHasSignal ? "已有培训或学习指标，建议继续绑定销售结果。" : "培训数据为空，客户容易只使用活动红包能力。" },
     { key: "factory_collaboration", label: "厂家协同", value: shareRewardAmount || shareRecordCount, level: shareRecordCount || shareRewardAmount ? "healthy" : "risk", explanation: shareRecordCount || shareRewardAmount ? `厂家晒单/打赏记录 ${shareRecordCount} 条，金额约 ${shareRewardAmount}。` : "厂家打赏和晒单为空，厂家资源没有形成执行证据。" },
   ];
@@ -822,7 +826,7 @@ function deriveOperationInsights(dataset) {
       usedRewardPlays.length < 3 ? `优先补齐 ${unusedRewardPlays.slice(0, 3).join("、")}，让客户看到四季蝉不只是单品红包。` : "复用已跑通玩法，沉淀月度活动模板。",
       trainingHasSignal ? "把培训结果与销售结果同屏复盘，证明学习能转化为推荐动作。" : "补齐培训考试，把重点品卖点学习、考试奖励和销售任务连成闭环。",
       shareRecordCount || shareRewardAmount ? "把厂家打赏和晒单沉淀成大单分享、排行榜和厂家复投证据。" : "推动厂家提供晒单打赏或活动费用，用数据证明资源落到门店执行层。",
-      employeeCoverage ? "继续强化店员感知，复盘排行榜、高收益员工和及时收益案例。" : "补齐店员收益闭环，重点展示及时豆、延时豆、可提现收益和到账案例。",
+      employeeParticipationSignal ? "继续强化店员感知，复盘排行榜、高收益员工和及时收益案例。" : "补齐店员收益闭环，重点展示及时豆、延时豆、可提现收益和到账案例。",
     ],
     metrics: {
       salesSkuCount,
@@ -835,6 +839,7 @@ function deriveOperationInsights(dataset) {
       rewardEfficiency,
       storeCoverage,
       employeeCoverage,
+      employeeParticipationSignal,
       usedRewardPlayCount: usedRewardPlays.length,
       unusedRewardPlays,
       shareRecordCount,
