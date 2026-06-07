@@ -36,9 +36,11 @@
 
 - 销售汇总：销售概览、销售商品明细
 - 奖励统计：近半年奖励类型统计、奖励合计
+- 奖励发放明细：近半年奖励发放统计、奖励流向店员的明细
 - 活动汇总：5月、4月、近半年活动商品汇总
 - 培训情况：课程概览、资源概览、角色/门店/员工/课程学习明细
 - 店员圈厂家打赏：打赏汇总、打赏明细
+- 员工豆豆账户/提现：员工账户汇总、提现汇总、提现明细、延时豆核销、员工结算
 - 概览校验：活动奖励核心指标、员工奖励提现指标、店员圈指标
 
 ## 数据状态口径
@@ -110,9 +112,11 @@ node sijichan_data_export.js \
 │  ├─ manifest.json
 │  ├─ sales.json
 │  ├─ reward_statistics.json
+│  ├─ reward_distribution.json
 │  ├─ activity_summary.json
 │  ├─ training.json
 │  ├─ manufacturer_tips.json
+│  ├─ employee_account.json
 │  ├─ overview.json
 │  ├─ interface_diagnostics.json
 │  ├─ data_source_status.json

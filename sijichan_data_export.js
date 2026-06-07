@@ -212,7 +212,15 @@ function responseData(result) {
 }
 
 function rowsFromPaged(paged) {
-  return paged && Array.isArray(paged.rows) ? paged.rows : [];
+  if (Array.isArray(paged)) return paged;
+  if (!paged || typeof paged !== "object") return [];
+  if (Array.isArray(paged.rows)) return paged.rows;
+  if (Array.isArray(paged.data)) return paged.data;
+  if (Array.isArray(paged.list)) return paged.list;
+  if (Array.isArray(paged.records)) return paged.records;
+  if (Array.isArray(paged.result)) return paged.result;
+  if (paged.response && paged.response.data) return rowsFromPaged(paged.response.data);
+  return [];
 }
 
 function metricRowsFromObject(value, source, basePath = "") {
@@ -428,10 +436,11 @@ async function pagedPost(endpoint, baseBody, token, merCode, pageSize = 1000) {
     pages.push(result);
     const data = result.response && result.response.data;
     if (currentPage === 1) {
-      totalCount = Number((data && data.totalCount) || 0);
-      totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+      totalCount = Number((data && (data.totalCount || data.total || data.count)) || 0);
+      const explicitPages = Number((data && (data.totalPages || data.totalPage || data.pages)) || 0);
+      totalPages = explicitPages || Math.max(1, Math.ceil(totalCount / pageSize));
     }
-    if (Array.isArray(data && data.data)) rows.push(...data.data);
+    rows.push(...rowsFromPaged(data));
   }
   return {
     endpoint,
@@ -528,6 +537,8 @@ async function collectData(args) {
   const trainBase = withMerCode({ startTime: windows.nearHalf.start, endTime: windows.nearHalf.end, authorizeBusinessCode: "" });
   const activityBody = (w) => ({ timeType: 1, startTime: w.start, endTime: w.end, summaryType: 1 });
   const rewardBody = { timeType: 1, startTime: windows.nearHalf.start, endTime: windows.nearHalf.end };
+  const rewardDistributionBody = { timeType: 1, startTime: windows.nearHalf.start, endTime: windows.nearHalf.end };
+  const employeeAccountBody = withMerCode({ timeType: 1, startTime: windows.nearHalf.start, endTime: windows.nearHalf.end });
   const tipsBody = { startTime: windows.nearHalf.start, endTime: windows.nearHalf.end };
 
   const raw = {
@@ -547,6 +558,12 @@ async function collectData(args) {
       nearHalf: {
         rows: await client.paged("奖励统计-近半年", "imActivityReward/commodity/rewardTypeStatistics", rewardBody),
         sum: await client.post("奖励统计合计-近半年", "imActivityReward/commodity/rewardTypeStatistics/sum", rewardBody),
+      },
+    },
+    rewardDistribution: {
+      nearHalf: {
+        statistics: await client.post("奖励发放统计-近半年", "imActivityReward/queryRewardStatistics", rewardDistributionBody),
+        rows: await client.paged("奖励发放明细-近半年", "imActivityReward/queryRewardList", rewardDistributionBody),
       },
     },
     activitySummary: {
@@ -574,6 +591,14 @@ async function collectData(args) {
     manufacturerTips: {
       summary: await client.post("店员圈厂家打赏汇总", "orderShareMoment/shareRewardDetailSum", tipsBody),
       rows: await client.paged("店员圈厂家打赏明细", "orderShareMoment/queryShareRewardDetailList", tipsBody),
+    },
+    employeeAccount: {
+      accountSummary: await client.post("员工豆豆账户汇总-近半年", "isp_account/emp/view/list/sum", employeeAccountBody),
+      withdrawSummary: await client.post("员工提现汇总-近半年", "isp_account/emp/view/withdraw/sum", employeeAccountBody),
+      withdrawRows: await client.paged("员工提现明细-近半年", "isp_account/emp/view/withdraw_list", employeeAccountBody),
+      writeOffRows: await client.paged("延时豆核销明细-近半年", "integral/reward/queryEmpWriteOffPage", employeeAccountBody),
+      settleSummary: await client.post("员工结算汇总-近半年", "account/emp/settle/page/sum", employeeAccountBody),
+      settleRows: await client.paged("员工结算明细-近半年", "account/emp/settle/page", employeeAccountBody),
     },
     overview: {
       activityTopStatistic: await client.post("概览-活动奖励核心指标", "report/activityReward/queryTopStatisticData", withMerCode({})),
@@ -631,6 +656,12 @@ function standardize(raw) {
       nearHalf: rowsFromPaged(raw.rewardStatistics.nearHalf.rows),
       sum: responseData(raw.rewardStatistics.nearHalf.sum),
     },
+    reward_distribution: {
+      nearHalf: {
+        statistics: responseData(raw.rewardDistribution && raw.rewardDistribution.nearHalf && raw.rewardDistribution.nearHalf.statistics),
+        rows: rowsFromPaged(raw.rewardDistribution && raw.rewardDistribution.nearHalf && raw.rewardDistribution.nearHalf.rows),
+      },
+    },
     activity_summary: {},
     training: {
       courseOverview: responseData(raw.training.courseOverview),
@@ -643,6 +674,14 @@ function standardize(raw) {
     manufacturer_tips: {
       summary: responseData(raw.manufacturerTips.summary),
       rows: rowsFromPaged(raw.manufacturerTips.rows),
+    },
+    employee_account: {
+      accountSummary: responseData(raw.employeeAccount && raw.employeeAccount.accountSummary),
+      withdrawSummary: responseData(raw.employeeAccount && raw.employeeAccount.withdrawSummary),
+      withdrawRows: rowsFromPaged(raw.employeeAccount && raw.employeeAccount.withdrawRows),
+      writeOffRows: rowsFromPaged(raw.employeeAccount && raw.employeeAccount.writeOffRows),
+      settleSummary: responseData(raw.employeeAccount && raw.employeeAccount.settleSummary),
+      settleRows: rowsFromPaged(raw.employeeAccount && raw.employeeAccount.settleRows),
     },
     overview: Object.fromEntries(Object.entries(raw.overview).map(([key, value]) => [key, responseData(value)])),
     interface_diagnostics: raw.diagnostics || [],
@@ -714,6 +753,8 @@ function buildDataSourceStatus(dataset) {
   const activityMetrics = Object.entries(dataset.activity_summary).flatMap(([key, value]) => metricRowsFromObject(value.sum, "activity_summary", `${key}.sum`));
   const rewardRows = dataset.reward_statistics.nearHalf || [];
   const rewardMetrics = metricRowsFromObject(dataset.reward_statistics.sum, "reward_statistics", "nearHalf.sum");
+  const rewardDistributionRows = (dataset.reward_distribution && dataset.reward_distribution.nearHalf && dataset.reward_distribution.nearHalf.rows) || [];
+  const rewardDistributionMetrics = metricRowsFromObject(dataset.reward_distribution && dataset.reward_distribution.nearHalf && dataset.reward_distribution.nearHalf.statistics, "reward_distribution", "nearHalf.statistics");
   const trainingRows = [
     ...(dataset.training.roleLearning || []),
     ...(dataset.training.storeLearning || []),
@@ -726,14 +767,26 @@ function buildDataSourceStatus(dataset) {
   ];
   const tipsRows = dataset.manufacturer_tips.rows || [];
   const tipsMetrics = metricRowsFromObject(dataset.manufacturer_tips.summary, "manufacturer_tips", "summary");
+  const employeeAccountRows = [
+    ...((dataset.employee_account && dataset.employee_account.withdrawRows) || []),
+    ...((dataset.employee_account && dataset.employee_account.writeOffRows) || []),
+    ...((dataset.employee_account && dataset.employee_account.settleRows) || []),
+  ];
+  const employeeAccountMetrics = [
+    ...metricRowsFromObject(dataset.employee_account && dataset.employee_account.accountSummary, "employee_account", "accountSummary"),
+    ...metricRowsFromObject(dataset.employee_account && dataset.employee_account.withdrawSummary, "employee_account", "withdrawSummary"),
+    ...metricRowsFromObject(dataset.employee_account && dataset.employee_account.settleSummary, "employee_account", "settleSummary"),
+  ];
   const overviewMetrics = Object.entries(dataset.overview).flatMap(([key, value]) => metricRowsFromObject(value, "overview", key));
 
   return [
     dataSourceStatus({ name: "sales", label: "销售汇总", rows: salesRows, metricRows: salesMetrics, note: "销售商品明细接口，同时包含销售概览指标。" }),
     dataSourceStatus({ name: "activity_summary", label: "活动汇总", rows: activityRows, metricRows: activityMetrics, note: "活动商品明细接口，同时包含活动汇总合计。" }),
     dataSourceStatus({ name: "reward_statistics", label: "奖励统计", rows: rewardRows, metricRows: rewardMetrics, note: "奖励统计明细接口，同时包含奖励金额合计。" }),
+    dataSourceStatus({ name: "reward_distribution", label: "奖励发放明细", rows: rewardDistributionRows, metricRows: rewardDistributionMetrics, note: "奖励发放页接口，用于证明奖励从活动执行流向店员。" }),
     dataSourceStatus({ name: "training", label: "培训情况", rows: trainingRows, metricRows: trainingMetrics, note: "培训接口成功返回；明细为0时以课程/资源概览判断是否有培训承接。" }),
     dataSourceStatus({ name: "manufacturer_tips", label: "厂家打赏", rows: tipsRows, metricRows: tipsMetrics, note: "厂家打赏接口成功返回；金额和明细为0代表当前口径未发生厂家额外激励。" }),
+    dataSourceStatus({ name: "employee_account", label: "员工豆豆账户/提现", rows: employeeAccountRows, metricRows: employeeAccountMetrics, note: "员工账户、提现、核销与结算接口，用于证明店员收益闭环。" }),
     dataSourceStatus({ name: "overview", label: "概览校验", rows: [], metricRows: overviewMetrics, note: "首页概览是指标型数据，不产生明细行。" }),
   ];
 }
@@ -746,9 +799,9 @@ function deriveOperationInsights(dataset) {
   const productCodeCandidates = ["commodityCode", "wareIspCode", "erpCode", "productCode", "goodsCode", "skuCode", "商品编码"];
   const productNameCandidates = ["commodityName", "productName", "goodsName", "skuName", "商品名称"];
   const salesAmountCandidates = ["saleCommodityAmount", "rewardCommodityAmount", "saleAmount", "salesAmount", "销售金额", "激励商品销售金额"];
-  const rewardAmountCandidates = ["rewardSaleAmount", "singleRewardMoney", "multiRewardMoney", "combineRewardMoney", "commodityTargetRewardMoney", "serialTargetRewardMoney", "combinationTargetRewardMoney", "dayRankRewardMoney", "rankingRewardMoney", "rewardAmount", "奖励金额", "激励总金额"];
+  const rewardAmountCandidates = ["rewardSaleAmount", "rewardMoney", "rewardBookingMoney", "rewardAmount", "singleRewardMoney", "multiRewardMoney", "combineRewardMoney", "commodityTargetRewardMoney", "serialTargetRewardMoney", "combinationTargetRewardMoney", "dayRankRewardMoney", "rankingRewardMoney", "amount", "奖励金额", "激励总金额"];
   const storeCandidates = ["saleStoreNum", "storeNum", "storeCode", "merCode", "门店编码", "动销门店数"];
-  const employeeCandidates = ["employeeCode", "empCode", "empId", "employeeName", "empName", "员工编码", "员工姓名"];
+  const employeeCandidates = ["employeeCode", "empCode", "empId", "employeeName", "empName", "clerkName", "员工编码", "员工姓名"];
   const employeeCountCandidates = ["saleEmpNum", "rewardEmpNum", "empNum", "employeeNum", "参与员工数", "奖励员工数"];
   const rewardPlayFields = [
     ["single_sales", "单品销售奖励", "singleRewardMoney", "单品奖励金额"],
@@ -768,6 +821,7 @@ function deriveOperationInsights(dataset) {
   const nearHalfActivityRows = withDataMeta(dataset.activity_summary && dataset.activity_summary.nearHalf && dataset.activity_summary.nearHalf.rows || [], "activity_summary.json", "nearHalf.rows");
   const activityRows = nearHalfActivityRows.length ? nearHalfActivityRows : allActivityRows;
   const rewardRows = withDataMeta(dataset.reward_statistics && dataset.reward_statistics.nearHalf || [], "reward_statistics.json", "nearHalf.rows");
+  const rewardDistributionRows = withDataMeta(dataset.reward_distribution && dataset.reward_distribution.nearHalf && dataset.reward_distribution.nearHalf.rows || [], "reward_distribution.json", "nearHalf.rows");
   const trainingRows = [
     ...withDataMeta(dataset.training && dataset.training.roleLearning || [], "training.json", "roleLearning"),
     ...withDataMeta(dataset.training && dataset.training.storeLearning || [], "training.json", "storeLearning"),
@@ -775,10 +829,30 @@ function deriveOperationInsights(dataset) {
     ...withDataMeta(dataset.training && dataset.training.courseLearning || [], "training.json", "courseLearning"),
   ];
   const tipsRows = withDataMeta(dataset.manufacturer_tips && dataset.manufacturer_tips.rows || [], "manufacturer_tips.json", "rows");
+  const employeeAccountRows = [
+    ...withDataMeta(dataset.employee_account && dataset.employee_account.withdrawRows || [], "employee_account.json", "withdrawRows"),
+    ...withDataMeta(dataset.employee_account && dataset.employee_account.writeOffRows || [], "employee_account.json", "writeOffRows"),
+    ...withDataMeta(dataset.employee_account && dataset.employee_account.settleRows || [], "employee_account.json", "settleRows"),
+  ];
   const trainingMetrics = [
     ...metricRowsFromObject(dataset.training && dataset.training.courseOverview, "training", "courseOverview"),
     ...metricRowsFromObject(dataset.training && dataset.training.resourceOverview, "training", "resourceOverview"),
   ];
+  const rewardDistributionMetrics = metricRowsFromObject(dataset.reward_distribution && dataset.reward_distribution.nearHalf && dataset.reward_distribution.nearHalf.statistics, "reward_distribution", "nearHalf.statistics");
+  const employeeAccountMetrics = [
+    ...metricRowsFromObject(dataset.employee_account && dataset.employee_account.accountSummary, "employee_account", "accountSummary"),
+    ...metricRowsFromObject(dataset.employee_account && dataset.employee_account.withdrawSummary, "employee_account", "withdrawSummary"),
+    ...metricRowsFromObject(dataset.employee_account && dataset.employee_account.settleSummary, "employee_account", "settleSummary"),
+  ];
+  const metricObjects = (rows) => rows.map((row) => ({ [row.metric]: row.value }));
+  const yuanFromBeanUnit = (value) => {
+    const amount = toNumber(value);
+    return Math.abs(amount) >= 10000 ? roundMoney(amount / 100) : roundMoney(amount);
+  };
+  const maxMetricCandidate = (rows, candidates) => {
+    const values = rows.flatMap((row) => candidates.map((candidate) => toNumber(row && row[candidate]))).filter((value) => value > 0);
+    return values.length ? Math.max(...values) : 0;
+  };
 
   const salesSkuCount = uniqueCountCandidates(salesRows, productCodeCandidates);
   const activeSkuCount = uniqueCountCandidates(activityRows, productCodeCandidates);
@@ -787,12 +861,20 @@ function deriveOperationInsights(dataset) {
   const activitySalesAmount = roundMoney(sumCandidates(activityRows, salesAmountCandidates));
   const rewardRowsAmount = roundMoney(sumAllCandidateFields(rewardRows, rewardPlayFields.flatMap(([, , ...fields]) => fields)));
   const activityRewardAmount = roundMoney(sumCandidates(activityRows, rewardAmountCandidates));
-  const totalRewardAmount = rewardRowsAmount || activityRewardAmount;
+  const rewardDistributionAmount = roundMoney(sumCandidates(rewardDistributionRows, rewardAmountCandidates));
+  const rewardDistributionMetricAmount = roundMoney(sumCandidates(metricObjects(rewardDistributionMetrics), rewardAmountCandidates));
+  const totalRewardAmount = rewardRowsAmount || rewardDistributionAmount || rewardDistributionMetricAmount || activityRewardAmount;
   const rewardEfficiency = activitySalesAmount ? roundMoney((totalRewardAmount / activitySalesAmount) * 100) : 0;
   const activityCoverageRate = ratioPercent(activeSkuCount || rewardSkuCount, salesSkuCount || activeSkuCount || rewardSkuCount);
   const storeCoverage = uniqueCountCandidates([...salesRows, ...activityRows], storeCandidates);
-  const employeeCoverage = uniqueCountCandidates([...activityRows, ...tipsRows], employeeCandidates);
-  const employeeParticipationSignal = employeeCoverage || roundMoney(sumCandidates(activityRows, employeeCountCandidates));
+  const employeeCoverage = uniqueCountCandidates([...activityRows, ...tipsRows, ...employeeAccountRows, ...rewardDistributionRows], employeeCandidates);
+  const employeeMetricObjects = metricObjects(employeeAccountMetrics);
+  const totalWithdrawMoney = yuanFromBeanUnit(maxMetricCandidate(employeeMetricObjects, ["totalWithdrawMoney", "withdrawMoney", "withdrawAmount"]));
+  const availableMoney = yuanFromBeanUnit(maxMetricCandidate(employeeMetricObjects, ["availableMoney"]));
+  const totalPeas = yuanFromBeanUnit(maxMetricCandidate(employeeMetricObjects, ["totalPeas", "totalIntegral"]));
+  const writeOffIntegralMoney = yuanFromBeanUnit(maxMetricCandidate(employeeMetricObjects, ["writeOffIntegralMoney", "integralMoney"]));
+  const employeeAccountHasSignal = employeeAccountRows.length > 0 || hasNonZeroMetric(employeeAccountMetrics);
+  const employeeParticipationSignal = employeeCoverage || roundMoney(sumCandidates(activityRows, employeeCountCandidates)) || totalWithdrawMoney || totalPeas || (employeeAccountHasSignal ? 1 : 0);
   const trainingHasSignal = trainingRows.length > 0 || hasNonZeroMetric(trainingMetrics);
   const shareRecordCount = tipsRows.length;
   const shareRewardAmount = roundMoney(sumCandidates(tipsRows, rewardAmountCandidates));
@@ -812,7 +894,7 @@ function deriveOperationInsights(dataset) {
   const scoreItems = [
     { key: "activity_coverage", label: "活动覆盖", value: activityCoverageRate, level: rateLevel(activityCoverageRate, 35, 15), explanation: `活动覆盖约 ${activityCoverageRate}% 的动销品种。` },
     { key: "reward_closure", label: "激励闭环", value: rewardEfficiency, level: activitySalesAmount ? rateLevel(Math.min(rewardEfficiency, 100), 8, 2) : "risk", explanation: activitySalesAmount ? `每100元活动销售对应约 ${rewardEfficiency} 元奖励。` : "未识别到活动销售额，难以证明奖励带动销售。" },
-    { key: "employee_participation", label: "员工参与", value: employeeParticipationSignal, level: employeeParticipationSignal ? "watch" : "risk", explanation: employeeParticipationSignal ? `识别到员工/店员参与信号约 ${employeeParticipationSignal}。` : "缺少员工参与、晒单或收益闭环信号。" },
+    { key: "employee_participation", label: "员工参与", value: employeeParticipationSignal, level: employeeParticipationSignal ? (totalWithdrawMoney || employeeCoverage ? "healthy" : "watch") : "risk", explanation: employeeParticipationSignal ? `识别到店员参与/豆豆/提现信号约 ${employeeParticipationSignal}，提现金额约 ${totalWithdrawMoney}。` : "缺少员工参与、晒单或收益闭环信号。" },
     { key: "training_conversion", label: "培训承接", value: trainingRows.length || trainingMetrics.length, level: trainingHasSignal ? "watch" : "risk", explanation: trainingHasSignal ? "已有培训或学习指标，建议继续绑定销售结果。" : "培训数据为空，客户容易只使用活动红包能力。" },
     { key: "factory_collaboration", label: "厂家协同", value: shareRewardAmount || shareRecordCount, level: shareRecordCount || shareRewardAmount ? "healthy" : "risk", explanation: shareRecordCount || shareRewardAmount ? `厂家晒单/打赏记录 ${shareRecordCount} 条，金额约 ${shareRewardAmount}。` : "厂家打赏和晒单为空，厂家资源没有形成执行证据。" },
   ];
@@ -828,6 +910,8 @@ function deriveOperationInsights(dataset) {
     valueProofPoints: [
       totalSalesAmount ? `已识别重点品销售额约 ${totalSalesAmount}。` : "",
       activitySalesAmount ? `活动商品销售额约 ${activitySalesAmount}，奖励金额约 ${totalRewardAmount}。` : "",
+      totalWithdrawMoney || totalPeas ? `店员豆豆账户/提现已有信号：累计豆豆约 ${totalPeas}，提现约 ${totalWithdrawMoney}，余额约 ${availableMoney}。` : "",
+      rewardDistributionRows.length || hasNonZeroMetric(rewardDistributionMetrics) ? "奖励发放明细已接入，可证明奖励从活动执行流向店员。" : "",
       usedRewardPlays.length ? `已使用 ${usedRewardPlays.length} 类激励玩法：${usedRewardPlays.map((item) => item.label).join("、")}。` : "",
       storeCoverage ? `识别到 ${storeCoverage} 个门店/机构覆盖信号。` : "",
     ].filter(Boolean),
@@ -850,6 +934,10 @@ function deriveOperationInsights(dataset) {
       storeCoverage,
       employeeCoverage,
       employeeParticipationSignal,
+      totalWithdrawMoney,
+      availableMoney,
+      totalPeas,
+      writeOffIntegralMoney,
       usedRewardPlayCount: usedRewardPlays.length,
       unusedRewardPlays,
       shareRecordCount,
@@ -881,9 +969,11 @@ async function main() {
     ["manifest", null],
     ["sales", dataset.sales],
     ["reward_statistics", dataset.reward_statistics],
+    ["reward_distribution", dataset.reward_distribution],
     ["activity_summary", dataset.activity_summary],
     ["training", dataset.training],
     ["manufacturer_tips", dataset.manufacturer_tips],
+    ["employee_account", dataset.employee_account],
     ["overview", dataset.overview],
     ["interface_diagnostics", dataset.interface_diagnostics],
     ["data_source_status", dataset.data_source_status],
