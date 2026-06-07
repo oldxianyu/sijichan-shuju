@@ -265,6 +265,12 @@ function sumCandidates(rows, candidates) {
   }, 0);
 }
 
+function sumAllCandidateFields(rows, candidates) {
+  return (rows || []).reduce((sum, row) => {
+    return sum + candidates.reduce((rowSum, candidate) => rowSum + toNumber(row && row[candidate]), 0);
+  }, 0);
+}
+
 function uniqueCountCandidates(rows, candidates) {
   const values = new Set();
   for (const row of rows || []) {
@@ -755,8 +761,12 @@ function deriveOperationInsights(dataset) {
     ["ranking", "排名奖励", "rankingRewardMoney", "排名奖励金额"],
   ];
 
-  const salesRows = Object.entries(dataset.sales || {}).flatMap(([key, value]) => withDataMeta(value.products || [], "sales.json", `${key}.products`));
-  const activityRows = Object.entries(dataset.activity_summary || {}).flatMap(([key, value]) => withDataMeta(value.rows || [], "activity_summary.json", `${key}.rows`));
+  const allSalesRows = Object.entries(dataset.sales || {}).flatMap(([key, value]) => withDataMeta(value.products || [], "sales.json", `${key}.products`));
+  const nearHalfSalesRows = withDataMeta(dataset.sales && dataset.sales.nearHalf_vs_previousHalf && dataset.sales.nearHalf_vs_previousHalf.products || [], "sales.json", "nearHalf_vs_previousHalf.products");
+  const salesRows = nearHalfSalesRows.length ? nearHalfSalesRows : allSalesRows;
+  const allActivityRows = Object.entries(dataset.activity_summary || {}).flatMap(([key, value]) => withDataMeta(value.rows || [], "activity_summary.json", `${key}.rows`));
+  const nearHalfActivityRows = withDataMeta(dataset.activity_summary && dataset.activity_summary.nearHalf && dataset.activity_summary.nearHalf.rows || [], "activity_summary.json", "nearHalf.rows");
+  const activityRows = nearHalfActivityRows.length ? nearHalfActivityRows : allActivityRows;
   const rewardRows = withDataMeta(dataset.reward_statistics && dataset.reward_statistics.nearHalf || [], "reward_statistics.json", "nearHalf.rows");
   const trainingRows = [
     ...withDataMeta(dataset.training && dataset.training.roleLearning || [], "training.json", "roleLearning"),
@@ -775,7 +785,7 @@ function deriveOperationInsights(dataset) {
   const rewardSkuCount = uniqueCountCandidates(rewardRows, productCodeCandidates);
   const totalSalesAmount = roundMoney(sumCandidates(salesRows, salesAmountCandidates));
   const activitySalesAmount = roundMoney(sumCandidates(activityRows, salesAmountCandidates));
-  const rewardRowsAmount = roundMoney(sumCandidates(rewardRows, rewardAmountCandidates));
+  const rewardRowsAmount = roundMoney(sumAllCandidateFields(rewardRows, rewardPlayFields.flatMap(([, , ...fields]) => fields)));
   const activityRewardAmount = roundMoney(sumCandidates(activityRows, rewardAmountCandidates));
   const totalRewardAmount = rewardRowsAmount || activityRewardAmount;
   const rewardEfficiency = activitySalesAmount ? roundMoney((totalRewardAmount / activitySalesAmount) * 100) : 0;
