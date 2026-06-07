@@ -540,6 +540,16 @@ async function collectData(args) {
   const rewardDistributionBody = { timeType: 1, startTime: windows.nearHalf.start, endTime: windows.nearHalf.end };
   const employeeAccountBody = withMerCode({ timeType: 1, startTime: windows.nearHalf.start, endTime: windows.nearHalf.end });
   const tipsBody = { startTime: windows.nearHalf.start, endTime: windows.nearHalf.end };
+  const activityCatalogBody = {
+    status: null,
+    activityName: "",
+    commodityName: "",
+    commodityCode: "",
+    ispName: "",
+    storeCodeList: [],
+    areaIds: [],
+    fromType: null,
+  };
 
   const raw = {
     meta: {
@@ -565,6 +575,9 @@ async function collectData(args) {
         statistics: await client.post("奖励发放统计-近半年", "imActivityReward/queryRewardStatistics", rewardDistributionBody),
         rows: await client.paged("奖励发放明细-近半年", "imActivityReward/queryRewardList", rewardDistributionBody),
       },
+    },
+    activityCatalog: {
+      joined: await client.paged("我的活动列表", "industryMarket/queryAlreadyActivity", activityCatalogBody),
     },
     activitySummary: {
       lastMonth: {
@@ -662,6 +675,9 @@ function standardize(raw) {
         rows: rowsFromPaged(raw.rewardDistribution && raw.rewardDistribution.nearHalf && raw.rewardDistribution.nearHalf.rows),
       },
     },
+    activity_catalog: {
+      joined: rowsFromPaged(raw.activityCatalog && raw.activityCatalog.joined),
+    },
     activity_summary: {},
     training: {
       courseOverview: responseData(raw.training.courseOverview),
@@ -749,6 +765,7 @@ function dataSourceStatus({ name, label, rows = [], metricRows = [], note = "" }
 function buildDataSourceStatus(dataset) {
   const salesRows = Object.values(dataset.sales).flatMap((item) => item.products || []);
   const salesMetrics = Object.entries(dataset.sales).flatMap(([key, value]) => metricRowsFromObject(value.overview, "sales", `${key}.overview`));
+  const activityCatalogRows = (dataset.activity_catalog && dataset.activity_catalog.joined) || [];
   const activityRows = Object.values(dataset.activity_summary).flatMap((item) => item.rows || []);
   const activityMetrics = Object.entries(dataset.activity_summary).flatMap(([key, value]) => metricRowsFromObject(value.sum, "activity_summary", `${key}.sum`));
   const rewardRows = dataset.reward_statistics.nearHalf || [];
@@ -781,6 +798,7 @@ function buildDataSourceStatus(dataset) {
 
   return [
     dataSourceStatus({ name: "sales", label: "销售汇总", rows: salesRows, metricRows: salesMetrics, note: "销售商品明细接口，同时包含销售概览指标。" }),
+    dataSourceStatus({ name: "activity_catalog", label: "Activity catalog", rows: activityCatalogRows, metricRows: [], note: "Joined/configured activity list for sustained Sijichan operation." }),
     dataSourceStatus({ name: "activity_summary", label: "活动汇总", rows: activityRows, metricRows: activityMetrics, note: "活动商品明细接口，同时包含活动汇总合计。" }),
     dataSourceStatus({ name: "reward_statistics", label: "奖励统计", rows: rewardRows, metricRows: rewardMetrics, note: "奖励统计明细接口，同时包含奖励金额合计。" }),
     dataSourceStatus({ name: "reward_distribution", label: "奖励发放明细", rows: rewardDistributionRows, metricRows: rewardDistributionMetrics, note: "奖励发放页接口，用于证明奖励从活动执行流向店员。" }),
@@ -803,6 +821,9 @@ function deriveOperationInsights(dataset) {
   const storeCandidates = ["saleStoreNum", "storeNum", "storeCode", "merCode", "门店编码", "动销门店数"];
   const employeeCandidates = ["employeeCode", "empCode", "empId", "employeeName", "empName", "clerkName", "员工编码", "员工姓名"];
   const employeeCountCandidates = ["saleEmpNum", "rewardEmpNum", "empNum", "employeeNum", "参与员工数", "奖励员工数"];
+  const activityBudgetCandidates = ["totalSubsidy", "budgetAmount", "subsidyAmount", "activityBudget", "totalBudget"];
+  const activityUsedBudgetCandidates = ["alreadySubsidy", "usedSubsidy", "usedBudget", "rewardBookingMoney", "rewardMoney"];
+  const activityRemainBudgetCandidates = ["surplusSubsidy", "remainSubsidy", "remainBudget"];
   const rewardPlayFields = [
     ["single_sales", "单品销售奖励", "singleRewardMoney", "单品奖励金额"],
     ["multi_sales", "疗程销售奖励", "multiRewardMoney", "疗程奖励金额"],
@@ -820,6 +841,7 @@ function deriveOperationInsights(dataset) {
   const allActivityRows = Object.entries(dataset.activity_summary || {}).flatMap(([key, value]) => withDataMeta(value.rows || [], "activity_summary.json", `${key}.rows`));
   const nearHalfActivityRows = withDataMeta(dataset.activity_summary && dataset.activity_summary.nearHalf && dataset.activity_summary.nearHalf.rows || [], "activity_summary.json", "nearHalf.rows");
   const activityRows = nearHalfActivityRows.length ? nearHalfActivityRows : allActivityRows;
+  const activityCatalogRows = withDataMeta(dataset.activity_catalog && dataset.activity_catalog.joined || [], "activity_catalog.json", "joined");
   const rewardRows = withDataMeta(dataset.reward_statistics && dataset.reward_statistics.nearHalf || [], "reward_statistics.json", "nearHalf.rows");
   const rewardDistributionRows = withDataMeta(dataset.reward_distribution && dataset.reward_distribution.nearHalf && dataset.reward_distribution.nearHalf.rows || [], "reward_distribution.json", "nearHalf.rows");
   const trainingRows = [
@@ -857,6 +879,14 @@ function deriveOperationInsights(dataset) {
   const salesSkuCount = uniqueCountCandidates(salesRows, productCodeCandidates);
   const activeSkuCount = uniqueCountCandidates(activityRows, productCodeCandidates);
   const rewardSkuCount = uniqueCountCandidates(rewardRows, productCodeCandidates);
+  const joinedActivityCount = activityCatalogRows.length;
+  const onlineActivityCount = activityCatalogRows.filter((row) => [1, 3, 62, "1", "3", "62"].includes(row.status)).length;
+  const endedActivityCount = activityCatalogRows.filter((row) => [5, 6, "5", "6"].includes(row.status)).length;
+  const activityCatalogSalesAmount = roundMoney(sumCandidates(activityCatalogRows, ["activitySaleAmount", "saleAmount", "salesAmount"]));
+  const activityCatalogRelationSaleAmount = roundMoney(sumCandidates(activityCatalogRows, ["relationSaleAmount", "relatedSaleAmount"]));
+  const activityBudgetAmount = roundMoney(sumCandidates(activityCatalogRows, activityBudgetCandidates));
+  const activityUsedBudgetAmount = roundMoney(sumCandidates(activityCatalogRows, activityUsedBudgetCandidates));
+  const activityRemainBudgetAmount = roundMoney(sumCandidates(activityCatalogRows, activityRemainBudgetCandidates));
   const totalSalesAmount = roundMoney(sumCandidates(salesRows, salesAmountCandidates));
   const activitySalesAmount = roundMoney(sumCandidates(activityRows, salesAmountCandidates));
   const rewardRowsAmount = roundMoney(sumAllCandidateFields(rewardRows, rewardPlayFields.flatMap(([, , ...fields]) => fields)));
@@ -892,13 +922,15 @@ function deriveOperationInsights(dataset) {
   const weakActivityRows = activityRows.filter((row) => sumCandidates([row], salesAmountCandidates) <= 0 && sumCandidates([row], rewardAmountCandidates) > 0);
 
   const scoreItems = [
+    { key: "activity_sustainability", label: "活动持续运营", value: joinedActivityCount, level: onlineActivityCount ? "healthy" : joinedActivityCount ? "watch" : "risk", explanation: joinedActivityCount ? `已识别 ${joinedActivityCount} 个已参加/已配置活动，其中当前上架/发布约 ${onlineActivityCount} 个，活动销售额约 ${activityCatalogSalesAmount}。` : "未识别到已参加活动列表，客户可能还没有形成持续活动运营池。" },
     { key: "activity_coverage", label: "活动覆盖", value: activityCoverageRate, level: rateLevel(activityCoverageRate, 35, 15), explanation: `活动覆盖约 ${activityCoverageRate}% 的动销品种。` },
     { key: "reward_closure", label: "激励闭环", value: rewardEfficiency, level: activitySalesAmount ? rateLevel(Math.min(rewardEfficiency, 100), 8, 2) : "risk", explanation: activitySalesAmount ? `每100元活动销售对应约 ${rewardEfficiency} 元奖励。` : "未识别到活动销售额，难以证明奖励带动销售。" },
     { key: "employee_participation", label: "员工参与", value: employeeParticipationSignal, level: employeeParticipationSignal ? (totalWithdrawMoney || employeeCoverage ? "healthy" : "watch") : "risk", explanation: employeeParticipationSignal ? `识别到店员参与/豆豆/提现信号约 ${employeeParticipationSignal}，提现金额约 ${totalWithdrawMoney}。` : "缺少员工参与、晒单或收益闭环信号。" },
     { key: "training_conversion", label: "培训承接", value: trainingRows.length || trainingMetrics.length, level: trainingHasSignal ? "watch" : "risk", explanation: trainingHasSignal ? "已有培训或学习指标，建议继续绑定销售结果。" : "培训数据为空，客户容易只使用活动红包能力。" },
     { key: "factory_collaboration", label: "厂家协同", value: shareRewardAmount || shareRecordCount, level: shareRecordCount || shareRewardAmount ? "healthy" : "risk", explanation: shareRecordCount || shareRewardAmount ? `厂家晒单/打赏记录 ${shareRecordCount} 条，金额约 ${shareRewardAmount}。` : "厂家打赏和晒单为空，厂家资源没有形成执行证据。" },
   ];
-  const healthScore = Math.max(0, Math.min(100, Math.round(scoreItems.reduce((sum, item) => sum + (item.level === "healthy" ? 20 : item.level === "watch" ? 12 : 5), 0))));
+  const rawHealthScore = scoreItems.reduce((sum, item) => sum + (item.level === "healthy" ? 20 : item.level === "watch" ? 12 : 5), 0);
+  const healthScore = Math.max(0, Math.min(100, Math.round((rawHealthScore / Math.max(1, scoreItems.length * 20)) * 100)));
   const retentionRisk = healthScore >= 72 ? "low" : healthScore >= 48 ? "medium" : "high";
 
   return {
@@ -909,6 +941,8 @@ function deriveOperationInsights(dataset) {
     riskItems: scoreItems.filter((item) => item.level === "risk"),
     valueProofPoints: [
       totalSalesAmount ? `已识别重点品销售额约 ${totalSalesAmount}。` : "",
+      joinedActivityCount ? `已参加/配置活动 ${joinedActivityCount} 个，当前上架/发布约 ${onlineActivityCount} 个，可证明客户已有活动运营资产。` : "",
+      activityBudgetAmount || activityUsedBudgetAmount ? `活动预算约 ${activityBudgetAmount}，已发/已用约 ${activityUsedBudgetAmount}，剩余约 ${activityRemainBudgetAmount}，可用于推动客户做费用复盘。` : "",
       activitySalesAmount ? `活动商品销售额约 ${activitySalesAmount}，奖励金额约 ${totalRewardAmount}。` : "",
       totalWithdrawMoney || totalPeas ? `店员豆豆账户/提现已有信号：累计豆豆约 ${totalPeas}，提现约 ${totalWithdrawMoney}，余额约 ${availableMoney}。` : "",
       rewardDistributionRows.length || hasNonZeroMetric(rewardDistributionMetrics) ? "奖励发放明细已接入，可证明奖励从活动执行流向店员。" : "",
@@ -916,6 +950,7 @@ function deriveOperationInsights(dataset) {
       storeCoverage ? `识别到 ${storeCoverage} 个门店/机构覆盖信号。` : "",
     ].filter(Boolean),
     recommendedActions: [
+      joinedActivityCount ? "把已配置活动按上架、进行、结束分层复盘，优先把有效活动复制到更多门店和重点品。" : "先建立月度活动池，让客户从单次红包升级为持续动销运营。",
       activityCoverageRate < 35 ? "扩大活动覆盖，把AAA主力赚钱品、黄金单品和任务品分层配置。" : "保留当前活动覆盖，并按品种层级复制标杆门店。",
       usedRewardPlays.length < 3 ? `优先补齐 ${unusedRewardPlays.slice(0, 3).join("、")}，让客户看到四季蝉不只是单品红包。` : "复用已跑通玩法，沉淀月度活动模板。",
       trainingHasSignal ? "把培训结果与销售结果同屏复盘，证明学习能转化为推荐动作。" : "补齐培训考试，把重点品卖点学习、考试奖励和销售任务连成闭环。",
@@ -924,6 +959,14 @@ function deriveOperationInsights(dataset) {
     ],
     metrics: {
       salesSkuCount,
+      joinedActivityCount,
+      onlineActivityCount,
+      endedActivityCount,
+      activityCatalogSalesAmount,
+      activityCatalogRelationSaleAmount,
+      activityBudgetAmount,
+      activityUsedBudgetAmount,
+      activityRemainBudgetAmount,
       activeSkuCount,
       rewardSkuCount,
       activityCoverageRate,
@@ -968,6 +1011,7 @@ async function main() {
   const modules = [
     ["manifest", null],
     ["sales", dataset.sales],
+    ["activity_catalog", dataset.activity_catalog],
     ["reward_statistics", dataset.reward_statistics],
     ["reward_distribution", dataset.reward_distribution],
     ["activity_summary", dataset.activity_summary],

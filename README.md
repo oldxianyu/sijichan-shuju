@@ -35,6 +35,7 @@
 脚本会读取这些接口模块：
 
 - 销售汇总：销售概览、销售商品明细
+- 我的活动列表：已参加/已配置活动池、活动状态、预算、已用费用、活动销售额
 - 奖励统计：近半年奖励类型统计、奖励合计
 - 奖励发放明细：近半年奖励发放统计、奖励流向店员的明细
 - 活动汇总：5月、4月、近半年活动商品汇总
@@ -111,6 +112,7 @@ node sijichan_data_export.js \
 ├─ dataset/
 │  ├─ manifest.json
 │  ├─ sales.json
+│  ├─ activity_catalog.json
 │  ├─ reward_statistics.json
 │  ├─ reward_distribution.json
 │  ├─ activity_summary.json
