@@ -18,6 +18,7 @@
 - 新增 `data_source_status.json`，每个数据源都能看出是“有明细”“只有指标”“业务为空”还是“接口失败”。
 - 新增 `interface_diagnostics.json`，保留接口业务码、业务消息、行数、失败原因和请求时间，方便排查权限和接口异常。
 - 新增 `operation_insights.json`，提前计算健康度、流失风险、价值证明点和建议动作，方便 AI 报告直接组织复盘话术。
+- 奖励发放明细增加大客户分页保护：当明细量特别大时，默认保留前 20 页明细，并在诊断中记录 `totalCount`、`totalPages`、`fetchedPages` 和 `truncated`。
 - 客户编码 `merCode` 改为选填；为空时按登录账号默认权限取数，不强行传 `merCode/isSuper`。
 - 活动状态识别已补充真实状态码：当前上架/可运营活动会纳入活动持续运营评分。
 

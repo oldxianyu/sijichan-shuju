@@ -356,6 +356,10 @@ function buildDiagnostic({ label, endpoint, kind, request, result, rows = [], me
     businessMessage: (result && result.response && result.response.msg) || "",
     rowCount: rows.length,
     metricCount: metricRows.length,
+    totalCount: result && result.totalCount !== undefined ? result.totalCount : null,
+    totalPages: result && result.totalPages !== undefined ? result.totalPages : null,
+    fetchedPages: result && result.fetchedPages !== undefined ? result.fetchedPages : null,
+    truncated: Boolean(result && result.truncated),
     request: sanitizeRequest(request || (result && (result.request || result.baseRequest)) || {}),
     fetchedAt: (result && result.fetchedAt) || new Date().toISOString(),
     message: (error && error.message) || (result && result.error) || "",
@@ -383,6 +387,8 @@ function emptyPagedResult(endpoint, body, error, pageSize = 1000) {
     pageSize,
     totalCount: 0,
     totalPages: 0,
+    fetchedPages: 0,
+    truncated: false,
     rows: [],
     pages: [],
     error: error.message || String(error),
@@ -426,9 +432,10 @@ async function postJson(endpoint, body, token, merCode) {
   };
 }
 
-async function pagedPost(endpoint, baseBody, token, merCode, pageSize = 1000) {
+async function pagedPost(endpoint, baseBody, token, merCode, pageSize = 1000, options = {}) {
   const pages = [];
   const rows = [];
+  const maxPages = Number(options.maxPages || 0);
   let totalCount = 0;
   let totalPages = 1;
   for (let currentPage = 1; currentPage <= totalPages; currentPage += 1) {
@@ -441,6 +448,7 @@ async function pagedPost(endpoint, baseBody, token, merCode, pageSize = 1000) {
       totalPages = explicitPages || Math.max(1, Math.ceil(totalCount / pageSize));
     }
     rows.push(...rowsFromPaged(data));
+    if (maxPages > 0 && currentPage >= maxPages && currentPage < totalPages) break;
   }
   return {
     endpoint,
@@ -448,6 +456,8 @@ async function pagedPost(endpoint, baseBody, token, merCode, pageSize = 1000) {
     pageSize,
     totalCount,
     totalPages,
+    fetchedPages: pages.length,
+    truncated: totalPages > pages.length,
     rows,
     pages,
     fetchedAt: new Date().toISOString(),
@@ -468,9 +478,9 @@ function createClient(token, merCode, diagnostics) {
         return result;
       }
     },
-    async paged(label, endpoint, body, pageSize = 1000) {
+    async paged(label, endpoint, body, pageSize = 1000, options = {}) {
       try {
-        const result = await pagedPost(endpoint, body, token, merCode, pageSize);
+        const result = await pagedPost(endpoint, body, token, merCode, pageSize, options);
         diagnostics.push(buildDiagnostic({ label, endpoint, kind: "paged", request: body, result, rows: result.rows || [] }));
         return result;
       } catch (error) {
@@ -573,7 +583,7 @@ async function collectData(args) {
     rewardDistribution: {
       nearHalf: {
         statistics: await client.post("奖励发放统计-近半年", "imActivityReward/queryRewardStatistics", rewardDistributionBody),
-        rows: await client.paged("奖励发放明细-近半年", "imActivityReward/queryRewardList", rewardDistributionBody),
+        rows: await client.paged("奖励发放明细-近半年", "imActivityReward/queryRewardList", rewardDistributionBody, 1000, { maxPages: 20 }),
       },
     },
     activityCatalog: {
