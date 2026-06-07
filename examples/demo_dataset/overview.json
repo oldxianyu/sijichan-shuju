@@ -1,0 +1,21 @@
+{
+  "activityTopStatistic": {
+    "totalRewardAmount": 31974.39,
+    "totalCashRewardAmount": 0,
+    "totalIntegralRewardAmount": 31974.39
+  },
+  "rewardStat": {
+    "empIncentiveStat": {
+      "totalEmpIncentiveAmount": 8927.85,
+      "yoyRate": 128.14,
+      "momRate": -52.9
+    }
+  },
+  "orderShareSummary": {
+    "totalShareNum": "0",
+    "totalThumbNum": "0",
+    "totalForwardNum": "0",
+    "totalCommentNum": "0",
+    "totalRewardAmount": 0
+  }
+}

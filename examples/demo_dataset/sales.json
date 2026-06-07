@@ -1,19 +1,45 @@
 {
   "lastMonth_vs_priorTwoMonths": {
     "label": "上月",
+    "request": {
+      "beginTime": "2026-05-01 00:00:00",
+      "endTime": "2026-05-31 23:59:59",
+      "comparisonBeginTime": "2026-03-01 00:00:00",
+      "comparisonEndTime": "2026-04-30 23:59:59"
+    },
     "overview": {
-      "saleAmount": 128000,
-      "orderNum": 860,
-      "customersNum": 720
+      "saleNum": 591,
+      "saleAmount": 19359.41,
+      "customersNum": 281
     },
     "products": [
       {
         "commodityCode": "DEMO001",
-        "commodityName": "示例商品A",
-        "saleAmount": 42000,
-        "orderNum": 230,
-        "saleStoreNum": 18,
-        "saleEmpNum": 44
+        "commodityName": "示例重点品A",
+        "saleCommodityAmount": 7081.8,
+        "saleCommodityNum": 168,
+        "customersNum": 41,
+        "orderNum": 41,
+        "saleStoreNum": 13
+      }
+    ]
+  },
+  "nearHalf_vs_previousHalf": {
+    "label": "近半年",
+    "overview": {
+      "saleNum": 5356,
+      "saleAmount": 178284.83,
+      "customersNum": 2655
+    },
+    "products": [
+      {
+        "commodityCode": "DEMO001",
+        "commodityName": "示例重点品A",
+        "saleCommodityAmount": 39148.59,
+        "saleCommodityNum": 920,
+        "customersNum": 410,
+        "orderNum": 430,
+        "saleStoreNum": 18
       }
     ]
   }

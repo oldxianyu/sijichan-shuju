@@ -1,0 +1,62 @@
+[
+  {
+    "name": "sales",
+    "label": "销售汇总",
+    "status": "detail",
+    "statusText": "有明细 2行",
+    "rowCount": 2,
+    "metricCount": 6,
+    "headers": ["commodityCode", "commodityName", "saleCommodityAmount", "saleCommodityNum", "customersNum", "orderNum", "saleStoreNum"],
+    "note": "销售商品明细接口，同时包含销售概览指标。"
+  },
+  {
+    "name": "activity_summary",
+    "label": "活动汇总",
+    "status": "detail",
+    "statusText": "有明细 1行",
+    "rowCount": 1,
+    "metricCount": 15,
+    "headers": ["commodityCode", "commodityName", "storeName", "empName", "rewardCommodityAmount", "rewardNum", "rewardSaleAmount"],
+    "note": "活动商品明细接口，同时包含活动汇总合计。"
+  },
+  {
+    "name": "reward_statistics",
+    "label": "奖励统计",
+    "status": "detail",
+    "statusText": "有明细 1行",
+    "rowCount": 1,
+    "metricCount": 5,
+    "headers": ["commodityCode", "commodityName", "singleRewardMoney", "multiRewardMoney", "combineRewardMoney"],
+    "note": "奖励统计明细接口，同时包含奖励金额合计。"
+  },
+  {
+    "name": "training",
+    "label": "培训情况",
+    "status": "empty",
+    "statusText": "接口成功，业务值为0",
+    "rowCount": 0,
+    "metricCount": 10,
+    "headers": [],
+    "note": "培训接口成功返回；明细为0时以课程/资源概览判断是否有培训承接。"
+  },
+  {
+    "name": "manufacturer_tips",
+    "label": "厂家打赏",
+    "status": "empty",
+    "statusText": "接口成功，业务值为0",
+    "rowCount": 0,
+    "metricCount": 5,
+    "headers": [],
+    "note": "厂家打赏接口成功返回；金额和明细为0代表当前口径未发生厂家额外激励。"
+  },
+  {
+    "name": "overview",
+    "label": "概览校验",
+    "status": "metrics",
+    "statusText": "有指标无明细",
+    "rowCount": 0,
+    "metricCount": 12,
+    "headers": [],
+    "note": "首页概览是指标型数据，不产生明细行。"
+  }
+]

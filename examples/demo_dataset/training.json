@@ -1,0 +1,20 @@
+{
+  "courseOverview": {
+    "totalMustStudyCount": "0",
+    "totalStudiedCount": "0",
+    "totalCompleteCount": "0",
+    "totalPassCount": "0",
+    "avgCompleteRate": 0,
+    "avgExamPassRate": 0,
+    "totalRewardAmount": 0
+  },
+  "resourceOverview": {
+    "totalMaterialCount": "0",
+    "totalPaperCount": "0",
+    "totalCourseCount": "0"
+  },
+  "roleLearning": [],
+  "storeLearning": [],
+  "employeeLearning": [],
+  "courseLearning": []
+}

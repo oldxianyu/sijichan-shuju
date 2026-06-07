@@ -1,0 +1,36 @@
+[
+  {
+    "module": "销售商品明细-上月",
+    "endpoint": "industryOrder/queryStatisticsByProductAndMer",
+    "type": "paged",
+    "status": "success",
+    "statusText": "成功，有明细 1行",
+    "httpStatus": 200,
+    "businessCode": "10000",
+    "businessMessage": "success",
+    "rowCount": 1,
+    "metricCount": 0,
+    "request": {
+      "beginTime": "2026-05-01 00:00:00",
+      "endTime": "2026-05-31 23:59:59"
+    },
+    "fetchedAt": "2026-06-06T00:00:00.000Z"
+  },
+  {
+    "module": "培训课程概览",
+    "endpoint": "report/course/courseOverview",
+    "type": "post",
+    "status": "success",
+    "statusText": "成功，业务值为0",
+    "httpStatus": 200,
+    "businessCode": "10000",
+    "businessMessage": "success",
+    "rowCount": 0,
+    "metricCount": 7,
+    "request": {
+      "startTime": "2025-12-01 00:00:00",
+      "endTime": "2026-05-31 23:59:59"
+    },
+    "fetchedAt": "2026-06-06T00:00:00.000Z"
+  }
+]

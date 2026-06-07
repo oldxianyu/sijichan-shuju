@@ -1,5 +1,5 @@
 {
-  "project": "四季蝉接口数据导出",
+  "project": "四季蝉接口数据导出器",
   "merCode": "000000",
   "merName": "某机构",
   "generatedAt": "2026-06-06T00:00:00.000Z",
@@ -14,26 +14,32 @@
       "start": "2026-04-01 00:00:00",
       "end": "2026-04-30 23:59:59"
     },
+    "priorTwoMonths": {
+      "label": "前两月对比期",
+      "start": "2026-03-01 00:00:00",
+      "end": "2026-04-30 23:59:59"
+    },
     "nearHalf": {
       "label": "近半年",
       "start": "2025-12-01 00:00:00",
       "end": "2026-05-31 23:59:59"
+    },
+    "previousHalf": {
+      "label": "上期半年",
+      "start": "2025-06-01 00:00:00",
+      "end": "2025-11-30 23:59:59"
     }
   },
   "authSource": "username-password",
   "modules": [
-    {
-      "name": "sales",
-      "path": "sales.json"
-    },
-    {
-      "name": "reward_statistics",
-      "path": "reward_statistics.json"
-    },
-    {
-      "name": "activity_summary",
-      "path": "activity_summary.json"
-    }
+    { "name": "sales", "path": "sales.json" },
+    { "name": "reward_statistics", "path": "reward_statistics.json" },
+    { "name": "activity_summary", "path": "activity_summary.json" },
+    { "name": "training", "path": "training.json" },
+    { "name": "manufacturer_tips", "path": "manufacturer_tips.json" },
+    { "name": "overview", "path": "overview.json" },
+    { "name": "interface_diagnostics", "path": "interface_diagnostics.json" },
+    { "name": "data_source_status", "path": "data_source_status.json" }
   ],
-  "note": "This package only exports data. It does not generate analysis conclusions."
+  "note": "Demo only. Values are desensitized and do not represent any real customer."
 }

@@ -9,5 +9,6 @@ node_modules/
 /run_result.json
 /sijichan_data_export_*/
 /四季蝉数据导出_*/
+/真实数据*/
 *.log
 ~$*

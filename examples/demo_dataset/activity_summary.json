@@ -2,14 +2,43 @@
   "lastMonth": {
     "rows": [
       {
-        "activityName": "示例活动",
         "commodityCode": "DEMO001",
-        "commodityName": "示例商品A",
-        "rewardSaleAmount": 1800
+        "commodityName": "示例重点品A",
+        "storeName": "示例门店",
+        "empName": "示例店员",
+        "saleStoreNum": 17,
+        "saleEmpNum": 32,
+        "rewardCommodityAmount": 18556.63,
+        "rewardNum": 288,
+        "rewardSaleAmount": 895.1
       }
     ],
     "sum": {
-      "rewardSaleAmount": 1800
+      "saleStoreNum": 17,
+      "saleEmpNum": 32,
+      "rewardCommodityAmount": 18556.63,
+      "rewardNum": 288,
+      "rewardSaleAmount": 895.1
+    }
+  },
+  "previousMonth": {
+    "rows": [],
+    "sum": {
+      "saleStoreNum": 17,
+      "saleEmpNum": 35,
+      "rewardCommodityAmount": 16845.34,
+      "rewardNum": 416,
+      "rewardSaleAmount": 854.7
+    }
+  },
+  "nearHalf": {
+    "rows": [],
+    "sum": {
+      "saleStoreNum": 18,
+      "saleEmpNum": 45,
+      "rewardCommodityAmount": 166694.54,
+      "rewardNum": 3192,
+      "rewardSaleAmount": 8927.85
     }
   }
 }

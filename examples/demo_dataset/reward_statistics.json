@@ -2,12 +2,19 @@
   "nearHalf": [
     {
       "commodityCode": "DEMO001",
-      "commodityName": "示例商品A",
-      "singleRewardMoney": 1800,
-      "multiRewardMoney": 0
+      "commodityName": "示例重点品A",
+      "singleRewardMoney": 8927.85,
+      "multiRewardMoney": 0,
+      "combineRewardMoney": 0,
+      "commodityTargetRewardMoney": 0,
+      "rankingRewardMoney": 0
     }
   ],
   "sum": {
-    "totalRewardMoney": 1800
+    "singleRewardMoney": 8927.85,
+    "multiRewardMoney": 0,
+    "combineRewardMoney": 0,
+    "commodityTargetRewardMoney": 0,
+    "rankingRewardMoney": 0
   }
 }

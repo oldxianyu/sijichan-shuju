@@ -5,8 +5,8 @@ param(
   [string]$AuthStatePath,
   [string]$OutDir,
   [string]$AsOf,
-  [string]$MerCode = "000000",
-  [string]$MerName = "Demo Organization",
+  [string]$MerCode = "",
+  [string]$MerName = "",
   [string]$Operator = "",
   [switch]$SubmitExportTasks
 )
@@ -28,7 +28,9 @@ function Find-Node {
 }
 
 $node = Find-Node
-$nodeArgs = @($NodeScript, "--mer-code", $MerCode, "--mer-name", $MerName)
+$nodeArgs = @($NodeScript)
+if ($MerCode) { $nodeArgs += @("--mer-code", $MerCode) }
+if ($MerName) { $nodeArgs += @("--mer-name", $MerName) }
 if ($Username) { $nodeArgs += @("--username", $Username) }
 if ($Password) { $nodeArgs += @("--password", $Password) }
 if ($Token) { $nodeArgs += @("--token", $Token) }
