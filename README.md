@@ -179,3 +179,23 @@ node sijichan_data_export.js \
 - 脚本不会把密码或 token 写入输出文件。
 - `raw_exports/` 和实际导出的 `dataset/` 应保存到私有目录，不要提交到公开仓库。
 - 公开仓库中的示例数据应只保留脱敏结构和演示字段。
+
+## 2026-06-11 更新：动销率口径升级
+
+本仓库新增 `operation_base.json` 基础档案模块，用于把复盘报告里的“门店动销率、人员动销率、商品动销率”从活动接口里的平均字段，升级为按新零售后台真实经营底数计算。
+
+新增取数与计算口径：
+
+- 门店总数：读取 `merchant/institution/list` 页面对应的门店/机构数据，当前接口为 `memberDefend/chooseStoreList`，只统计状态可用、机构类型不是“仓库”的门店。
+- 员工总数：读取 `merchant/personManager/index` 页面对应的员工数据，当前接口为 `csd-staff/_searchEmployee`，只统计员工账号、在职、随心看启用，且随心看角色属于“店员、店长、运营、区域经理”的员工。
+- 商品总数：优先从四季蝉概览接口 `report/activityReward/queryTopStatisticData` 提取商品相关总数；若概览未返回明确商品总数，则回退为活动/销售明细里的唯一商品数。
+- 门店动销率 = 动销门店数 / 启用且非仓库门店总数。
+- 人员动销率 = 动销员工数 / 符合随心看条件员工总数。
+- 商品动销率 = 动销商品数 / 四季蝉商品总数。
+
+输出变化：
+
+- `dataset/operation_base.json` 保存基础档案原始行、筛选后摘要和数据来源说明。
+- `dataset/data_source_status.json` 新增 `operation_base` 数据源状态。
+- `dataset/interface_diagnostics.json` 会记录基础档案接口的成功/失败、行数、分页和业务消息。
+- `dataset/operation_insights.json` 的 `metrics` 新增 `movingRates`、`storeMovingRate`、`employeeMovingRate`、`productMovingRate` 以及对应分子/分母字段，供 `SOP_4CHAN` 生成中文复盘报告和 Excel 汇总使用。
