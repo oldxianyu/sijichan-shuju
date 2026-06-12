@@ -355,14 +355,18 @@ function isEnabledStoreInstitution(row) {
 }
 
 function isEligibleEmployee(row) {
-  const accountType = rowText(row, ["accountTypeName", "acctTypeName", "userTypeName", "账号类型", "账户类型"]);
-  const employment = rowText(row, ["employmentStatusName", "jobStatusName", "empStatusName", "staffStatusName", "员工状态", "在职状态"]);
-  const watchStatus = rowText(row, ["suiXinKanStatusName", "employeeSxkStatusName", "seeStatusName", "随心看状态", "员工随心看状态"]);
-  const role = rowText(row, ["suiXinKanRoleName", "roleName", "staffRoleName", "随心看角色", "角色"]);
-  const accountOk = fieldMissing(row, ["accountTypeName", "acctTypeName", "userTypeName", "账号类型", "账户类型"]) || /员工/.test(accountType);
-  const employmentOk = fieldMissing(row, ["employmentStatusName", "jobStatusName", "empStatusName", "staffStatusName", "员工状态", "在职状态"]) || (/在职|正常|启用/.test(employment) && !/离职|停用|禁用/.test(employment));
-  const watchOk = fieldMissing(row, ["suiXinKanStatusName", "employeeSxkStatusName", "seeStatusName", "随心看状态", "员工随心看状态"]) || (/启用|正常|开通/.test(watchStatus) && !/停用|禁用|关闭/.test(watchStatus));
-  const roleOk = fieldMissing(row, ["suiXinKanRoleName", "roleName", "staffRoleName", "随心看角色", "角色"]) || /(店员|店长|运营|区域经理)/.test(role);
+  const accountType = rowText(row, ["accountTypeName", "acctTypeName", "userTypeName"]);
+  const employment = rowText(row, ["employmentStatusName", "jobStatusName", "empStatusName", "staffStatusName"]);
+  const watchStatus = rowText(row, ["suiXinKanStatusName", "employeeSxkStatusName", "seeStatusName"]);
+  const role = rowText(row, ["suiXinKanRoleName", "roleName", "staffRoleName"]);
+  const accountValue = String(pickField(row, ["accountType", "acctType", "userType"]) || "");
+  const employmentValue = String(pickField(row, ["employmentStatus", "jobStatus", "empStatus", "staffStatus"]) || "");
+  const watchValue = String(pickField(row, ["suiXinKanStatus", "employeeSxkStatus", "seeStatus"]) || "");
+  const roleValue = String(pickField(row, ["suiXinKanRole", "role", "staffRole"]) || "");
+  const accountOk = !accountType || /employee|staff/i.test(accountType) || ["1", "2", "employee", "staff"].includes(accountValue.toLowerCase());
+  const employmentOk = !employment || /active|normal|enabled|on[-_ ]?job|in[-_ ]?service/i.test(employment) || ["1", "active", "normal", "enabled"].includes(employmentValue.toLowerCase());
+  const watchOk = /enabled|active|normal|open/i.test(watchStatus) || ["1", "enabled", "active", "normal", "open"].includes(watchValue.toLowerCase());
+  const roleOk = /clerk|stores*manager|areas*manager/i.test(role) || ["clerk", "store_manager", "area_manager", "1", "2", "4"].includes(roleValue.toLowerCase());
   return accountOk && employmentOk && watchOk && roleOk;
 }
 
