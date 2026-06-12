@@ -1070,6 +1070,8 @@ function deriveOperationInsights(dataset) {
   const rewardDistributionMetricAmount = roundMoney(sumCandidates(metricObjects(rewardDistributionMetrics), rewardAmountCandidates));
   const totalRewardAmount = rewardRowsAmount || rewardDistributionAmount || rewardDistributionMetricAmount || activityRewardAmount;
   const rewardEfficiency = activitySalesAmount ? roundMoney((totalRewardAmount / activitySalesAmount) * 100) : 0;
+  const inputOutputRatio = totalRewardAmount ? roundMoney(activitySalesAmount / totalRewardAmount) : 0;
+  const beanSalesEfficiency = inputOutputRatio;
   const activityCoverageRate = ratioPercent(activeSkuCount || rewardSkuCount, salesSkuCount || activeSkuCount || rewardSkuCount);
   const movingRates = buildMovingRateMetrics(activityRows, rewardRows, salesRows, dataset.operation_base && dataset.operation_base.summary);
   const storeCoverage = movingRates.storeMoving.numerator || uniqueCountCandidates([...salesRows, ...activityRows], storeCandidates);
@@ -1100,7 +1102,7 @@ function deriveOperationInsights(dataset) {
   const scoreItems = [
     { key: "activity_sustainability", label: "活动持续运营", value: joinedActivityCount, level: onlineActivityCount ? "healthy" : joinedActivityCount ? "watch" : "risk", explanation: joinedActivityCount ? `已识别 ${joinedActivityCount} 个已参加/已配置活动，其中当前上架/发布约 ${onlineActivityCount} 个，活动销售额约 ${activityCatalogSalesAmount}。` : "未识别到已参加活动列表，客户可能还没有形成持续活动运营池。" },
     { key: "activity_coverage", label: "活动覆盖", value: activityCoverageRate, level: rateLevel(activityCoverageRate, 35, 15), explanation: `活动覆盖约 ${activityCoverageRate}% 的动销品种。` },
-    { key: "reward_closure", label: "激励闭环", value: rewardEfficiency, level: activitySalesAmount ? rateLevel(Math.min(rewardEfficiency, 100), 8, 2) : "risk", explanation: activitySalesAmount ? `每100元活动销售对应约 ${rewardEfficiency} 元奖励。` : "未识别到活动销售额，难以证明奖励带动销售。" },
+    { key: "reward_closure", label: "激励闭环", value: rewardEfficiency, level: activitySalesAmount ? rateLevel(Math.min(rewardEfficiency, 100), 8, 2) : "risk", explanation: activitySalesAmount ? `每100元活动销售对应约 ${rewardEfficiency} 元奖励；投入产出比约 ${inputOutputRatio}，即每1个豆豆奖励带动约 ${beanSalesEfficiency} 元活动销售，口径为活动销售额除以奖励金额，1个豆豆=1元。` : "未识别到活动销售额，难以证明奖励带动销售。" },
     { key: "employee_participation", label: "员工参与", value: employeeParticipationSignal, level: employeeParticipationSignal ? (totalWithdrawMoney || employeeCoverage ? "healthy" : "watch") : "risk", explanation: employeeParticipationSignal ? `识别到店员参与/豆豆/提现信号约 ${employeeParticipationSignal}，提现金额约 ${totalWithdrawMoney}。` : "缺少员工参与、晒单或收益闭环信号。" },
     { key: "training_conversion", label: "培训承接", value: trainingRows.length || trainingMetrics.length, level: trainingHasSignal ? "watch" : "risk", explanation: trainingHasSignal ? "已有培训或学习指标，建议继续绑定销售结果。" : "培训数据为空，客户容易只使用活动红包能力。" },
     { key: "factory_collaboration", label: "厂家协同", value: shareRewardAmount || shareRecordCount, level: shareRecordCount || shareRewardAmount ? "healthy" : "risk", explanation: shareRecordCount || shareRewardAmount ? `厂家晒单/打赏记录 ${shareRecordCount} 条，金额约 ${shareRewardAmount}。` : "厂家打赏和晒单为空，厂家资源没有形成执行证据。" },
@@ -1150,6 +1152,12 @@ function deriveOperationInsights(dataset) {
       activitySalesAmount,
       totalRewardAmount,
       rewardEfficiency,
+      inputOutputRatio,
+      beanSalesEfficiency,
+      feeEfficiencyRate: rewardEfficiency,
+      roiFormula: "投入产出比ROI = 活动销售额 ÷ 奖励金额",
+      beanSalesFormula: "每1个豆豆奖励带动销售额 = 活动销售额 ÷ 奖励金额；1个豆豆=1元",
+      feeEfficiencyFormula: "费效比 = 奖励金额 ÷ 活动销售额 × 100%",
       storeCoverage,
       employeeCoverage,
       movingRates,
