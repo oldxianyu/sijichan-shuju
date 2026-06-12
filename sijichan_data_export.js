@@ -394,21 +394,34 @@ function summarizeOperationBase(raw, fallbackProductRows = []) {
   const productOverview = responseData(raw && raw.operationBase && raw.operationBase.productOverview);
   const eligibleStoreRows = storeRows.filter(isEnabledStoreInstitution);
   const eligibleEmployeeRows = employeeRows.filter(isEligibleEmployee);
-  const overviewProductTotal = totalFromObject(productOverview, ["commodityTotal", "commodityCount", "goodsTotal", "goodsCount", "productTotal", "productCount", "skuTotal", "skuCount", "商品总数"]);
+  const certifiedEmployeeCount = maxCandidates([
+    productOverview,
+    responseData(raw && raw.employeeAccount && raw.employeeAccount.accountSummary),
+    responseData(raw && raw.employeeAccount && raw.employeeAccount.withdrawSummary),
+    responseData(raw && raw.overview && raw.overview.rewardStat),
+  ], ["certifiedEmployeeCount", "authEmpCount", "employeeAuthCount", "certificationEmpCount", "empAuthCount", "??????", "?????", "?????"]);
+  const movingProductCount = totalFromObject(productOverview, ["movingCommodityCount", "movingProductCount", "saleCommodityCount", "soldCommodityCount", "?????"]);
+  const unmovedProductCount = totalFromObject(productOverview, ["unmovingCommodityCount", "notMovingCommodityCount", "unSaleCommodityCount", "unsoldCommodityCount", "??????"]);
+  const overviewProductTotal = (movingProductCount || unmovedProductCount)
+    ? movingProductCount + unmovedProductCount
+    : totalFromObject(productOverview, ["commodityTotal", "commodityCount", "goodsTotal", "goodsCount", "productTotal", "productCount", "skuTotal", "skuCount", "????"]);
   return {
     stores: {
       totalRows: storeRows.length,
-      enabledStoreCount: uniqueCountCandidates(eligibleStoreRows, ["stCode", "storeCode", "orCode", "orgCode", "id", "门店编码", "机构编码"]) || eligibleStoreRows.length,
-      source: "merchant/institution/list 页面对应接口：memberDefend/chooseStoreList，筛选状态为已启用且机构类型不是仓库。",
+      enabledStoreCount: uniqueCountCandidates(eligibleStoreRows, ["stCode", "storeCode", "orCode", "orgCode", "id", "????", "????"]) || eligibleStoreRows.length,
+      source: "merchant/institution/list ???????memberDefend/chooseStoreList???????????????????",
     },
     employees: {
       totalRows: employeeRows.length,
-      eligibleEmployeeCount: uniqueCountCandidates(eligibleEmployeeRows, ["empCode", "employeeCode", "staffCode", "account", "id", "员工编码", "账号"]) || eligibleEmployeeRows.length,
-      source: "merchant/personManager/index 页面对应接口：csd-staff/_searchEmployee，筛选员工账号、在职、随心看启用、角色为店员/店长/运营/区域经理。",
+      eligibleEmployeeCount: uniqueCountCandidates(eligibleEmployeeRows, ["empCode", "employeeCode", "staffCode", "account", "id", "????", "??"]) || eligibleEmployeeRows.length,
+      certifiedEmployeeCount,
+      source: certifiedEmployeeCount ? "?????????????????????????????????" : "merchant/personManager/index ???????csd-staff/_searchEmployee??????????????????????/??/??/?????",
     },
     products: {
       productTotal: overviewProductTotal || uniqueCountCandidates(fallbackProductRows, productIdentityCandidates),
-      source: overviewProductTotal ? "sjcmer/overview 概览指标" : "四季蝉概览未返回明确商品总数，使用活动/销售商品唯一数兜底。",
+      movingProductCount,
+      unmovedProductCount,
+      source: (movingProductCount || unmovedProductCount) ? "sjcmer/overview ?????????????+???????" : overviewProductTotal ? "sjcmer/overview ????" : "???????????????????/??????????",
     },
   };
 }
@@ -425,18 +438,19 @@ function maxCandidates(rows, candidates) {
 }
 
 function buildMovingRateMetrics(activityRows = [], rewardRows = [], salesRows = [], operationBaseSummary = {}) {
-  const storeIds = uniqueValuesByCandidates(activityRows, ["storeCode", "stCode", "orgCode", "orCode", "门店编码", "机构编码"]);
-  const employeeIds = uniqueValuesByCandidates([...(activityRows || []), ...(rewardRows || [])], ["employeeCode", "empCode", "staffCode", "clerkCode", "employeeId", "empId", "员工编码"]);
+  const storeIds = uniqueValuesByCandidates(activityRows, ["storeCode", "stCode", "orgCode", "orCode", "????", "????"]);
+  const employeeIds = uniqueValuesByCandidates([...(activityRows || []), ...(rewardRows || [])], ["employeeCode", "empCode", "staffCode", "clerkCode", "employeeId", "empId", "????"]);
   const activeProductCount = uniqueCountCandidates(activityRows, productIdentityCandidates) || uniqueCountCandidates(salesRows, productIdentityCandidates);
-  const activeStoreCount = storeIds.size || maxCandidates(activityRows, ["saleStoreNum", "storeNum", "movingStoreNum", "动销门店数", "销售门店数"]);
-  const activeEmployeeCount = employeeIds.size || maxCandidates(activityRows, ["saleEmpNum", "rewardEmpNum", "empNum", "employeeNum", "movingEmpNum", "动销员工数"]);
+  const activeStoreCount = storeIds.size || maxCandidates(activityRows, ["saleStoreNum", "storeNum", "movingStoreNum", "?????", "?????"]);
+  const activeEmployeeCount = employeeIds.size || maxCandidates(activityRows, ["saleEmpNum", "rewardEmpNum", "empNum", "employeeNum", "movingEmpNum", "?????"]);
   const totalStoreCount = toNumber(operationBaseSummary && operationBaseSummary.stores && operationBaseSummary.stores.enabledStoreCount);
-  const totalEmployeeCount = toNumber(operationBaseSummary && operationBaseSummary.employees && operationBaseSummary.employees.eligibleEmployeeCount);
+  const totalEmployeeCount = toNumber(operationBaseSummary && operationBaseSummary.employees && operationBaseSummary.employees.certifiedEmployeeCount) || toNumber(operationBaseSummary && operationBaseSummary.employees && operationBaseSummary.employees.eligibleEmployeeCount);
   const totalProductCount = toNumber(operationBaseSummary && operationBaseSummary.products && operationBaseSummary.products.productTotal) || activeProductCount;
+  const safeProductNumerator = totalProductCount ? Math.min(activeProductCount, totalProductCount) : activeProductCount;
   return {
-    storeMoving: { label: "门店动销率", numerator: activeStoreCount, denominator: totalStoreCount, rate: ratioPercent(activeStoreCount, totalStoreCount), source: storeIds.size ? "明细门店编码去重" : activeStoreCount ? "汇总字段兜底" : "无可计算分子", denominatorSource: (operationBaseSummary && operationBaseSummary.stores && operationBaseSummary.stores.source) || "" },
-    employeeMoving: { label: "人员动销率", numerator: activeEmployeeCount, denominator: totalEmployeeCount, rate: ratioPercent(activeEmployeeCount, totalEmployeeCount), source: employeeIds.size ? "明细员工编码去重" : activeEmployeeCount ? "汇总字段兜底" : "无可计算分子", denominatorSource: (operationBaseSummary && operationBaseSummary.employees && operationBaseSummary.employees.source) || "" },
-    productMoving: { label: "商品动销率", numerator: activeProductCount, denominator: totalProductCount, rate: ratioPercent(activeProductCount, totalProductCount), source: "活动商品编码去重", denominatorSource: (operationBaseSummary && operationBaseSummary.products && operationBaseSummary.products.source) || "" },
+    storeMoving: { label: "?????", numerator: activeStoreCount, denominator: totalStoreCount, rate: ratioPercent(activeStoreCount, totalStoreCount), source: storeIds.size ? "????????" : activeStoreCount ? "??????" : "??????", denominatorSource: (operationBaseSummary && operationBaseSummary.stores && operationBaseSummary.stores.source) || "" },
+    employeeMoving: { label: "?????", numerator: activeEmployeeCount, denominator: totalEmployeeCount, rate: ratioPercent(activeEmployeeCount, totalEmployeeCount), source: employeeIds.size ? "????????" : activeEmployeeCount ? "??????" : "??????", denominatorSource: (operationBaseSummary && operationBaseSummary.employees && operationBaseSummary.employees.source) || "" },
+    productMoving: { label: "?????", numerator: safeProductNumerator, rawNumerator: activeProductCount, denominator: totalProductCount, rate: ratioPercent(safeProductNumerator, totalProductCount), source: activeProductCount > safeProductNumerator ? "??????????????????????????" : "????????", denominatorSource: (operationBaseSummary && operationBaseSummary.products && operationBaseSummary.products.source) || "" },
   };
 }
 
